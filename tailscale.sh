@@ -43,6 +43,15 @@ sudo systemctl enable tailscale
 sudo systemctl start tailscale
 # Estas linhas ativam e iniciam o serviço do Tailscale usando 'systemctl'.
 
-echo "Tailscale instalado e configurado para iniciar automaticamente!"
-# Esta linha exibe uma mensagem indicando que o Tailscale foi instalado e configurado com sucesso.
+# Caminho para o arquivo bitcoin.conf
+BITCOIN_CONF="/root/.bitcoin/bitcoin.conf"
+
+# Configurar o Bitcoin Core para Usar o Tailscale
+echo -e "\n# Configurações para o Bitcoin Core com Tailscale" | sudo tee -a $BITCOIN_CONF
+echo "proxy=127.0.0.1:9050" | sudo tee -a $BITCOIN_CONF
+echo "listen=1" | sudo tee -a $BITCOIN_CONF
+echo "bind=0.0.0.0" | sudo tee -a $BITCOIN_CONF
+echo "externalip=$(sudo tailscale ip --4)" | sudo tee -a $BITCOIN_CONF
+
+echo "Configuração do Tailscale para o Bitcoin Core concluída com sucesso!"
 

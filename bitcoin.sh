@@ -1,52 +1,94 @@
+#!/bin/bash
+
 # Instala o curl
-apt install curl
-# Este comando instala o utilitário curl, que é utilizado posteriormente no script para baixar arquivos da web.
+sudo apt install curl
+
+# Lista de versões disponíveis do Bitcoin Core
+VERSIONS=("26.0" "0.21.2" "0.21.1" "0.20.0" "0.19.1" "0.18.0" "0.17.2" "0.16.3" "0.15.2" "0.14.3")
+
+# Solicitar ao usuário que escolha uma versão
+echo "Escolha uma versão do Bitcoin Core:"
+select BITCOIN_VERSION in "${VERSIONS[@]}"; do
+    if [[ " ${VERSIONS[@]} " =~ " ${BITCOIN_VERSION} " ]]; then
+        break
+    else
+        echo "Opção inválida. Tente novamente."
+    fi
+done
 
 # Diretório temporário para baixar e extrair o Bitcoin Core
 TEMP_DIR="/tmp/bitcoin-core-install"
-BITCOIN_VERSION="0.21.1"
 BITCOIN_TAR="bitcoin-${BITCOIN_VERSION}-x86_64-linux-gnu.tar.gz"
 BITCOIN_URL="https://bitcoincore.org/bin/bitcoin-core-${BITCOIN_VERSION}/${BITCOIN_TAR}"
 
 # Criar diretório temporário
 mkdir -p $TEMP_DIR
 cd $TEMP_DIR
-# Estas linhas definem variáveis relacionadas ao diretório temporário e à versão do Bitcoin Core.
-# Em seguida, o script cria e entra no diretório temporário.
 
 # Baixar o Bitcoin Core
 echo "Baixando Bitcoin Core v${BITCOIN_VERSION}..."
 curl -L -O $BITCOIN_URL
-# Esta linha utiliza o curl para baixar o arquivo do Bitcoin Core da URL especificada.
 
 # Extrair o arquivo baixado
 echo "Extraindo..."
 tar -xvzf $BITCOIN_TAR
-# Esta linha extrai o conteúdo do arquivo tar.gz baixado.
 
 # Instalar o Bitcoin Core
 echo "Instalando..."
 sudo install -m 0755 -o root -g root -t /usr/local/bin bitcoin-${BITCOIN_VERSION}/bin/*
-# Aqui, o script instala o Bitcoin Core no diretório '/usr/local/bin'.
 
 # Criar arquivo de configuração bitcoin.conf
 echo "Criando arquivo de configuração bitcoin.conf..."
-cat <<EOF | sudo tee /root/.bitcoin/bitcoin.conf
-# Configurações para o Bitcoin Core
 
-# Você pode adicionar suas configurações específicas aqui
-# rpcuser=seu_usuario
-# rpcpassword=sua_senha
-# server=1
-# listen=1
-# ...
-EOF
-# Esta parte cria um arquivo de configuração 'bitcoin.conf' no diretório '/root/.bitcoin/'.
+# Perguntar ao usuário se deseja habilitar o RPC
+read -p "Deseja habilitar o RPC? (s/n) " enable_rpc
+if [[ $enable_rpc =~ ^[Ss]$ ]]; then
+    read -p "Digite o nome de usuário RPC: " rpc_user
+    read -s -p "Digite a senha RPC: " rpc_password
+    echo -e "\nrpcuser=${rpc_user}" | sudo tee -a /root/.bitcoin/bitcoin.conf
+    echo -e "rpcpassword=${rpc_password}" | sudo tee -a /root/.bitcoin/bitcoin.conf
+fi
+
+# Perguntar ao usuário se deseja adicionar mais memória RAM
+read -p "Deseja adicionar mais memória RAM para a sincronização? (s/n) " enable_ram
+if [[ $enable_ram =~ ^[Ss]$ ]]; then
+    options=("1g" "2g" "4g")
+    PS3="Escolha a quantidade de memória RAM adicional: "
+    select ram_option in "${options[@]}"; do
+        case $ram_option in
+            "1g")
+                echo "dbcache=1024" | sudo tee -a /root/.bitcoin/bitcoin.conf
+                break
+                ;;
+            "2g")
+                echo "dbcache=2048" | sudo tee -a /root/.bitcoin/bitcoin.conf
+                break
+                ;;
+            "4g")
+                echo "dbcache=4096" | sudo tee -a /root/.bitcoin/bitcoin.conf
+                break
+                ;;
+            *)
+                echo "Opção inválida. Tente novamente."
+                ;;
+        esac
+    done
+fi
+
+# Perguntar ao usuário se deseja limitar o uso de HD
+read -p "Deseja limitar o uso de HD para o Bitcoin Core? (s/n) " enable_hd_limit
+if [[ $enable_hd_limit =~ ^[Ss]$ ]]; then
+    read -p "Digite a porcentagem de HD a ser utilizada pelo Bitcoin Core (0-100%): " hd_percentage
+    if [[ $hd_percentage =~ ^[0-9]+$ ]] && ((hd_percentage >= 0 && hd_percentage <= 100)); then
+        echo "dbcache=${hd_percentage}" | sudo tee -a /root/.bitcoin/bitcoin.conf
+    else
+        echo "Porcentagem inválida. Utilizando o valor padrão."
+    fi
+fi
 
 # Limpar arquivos temporários
 echo "Limpando arquivos temporários..."
 rm -rf $TEMP_DIR
-# Esta linha remove o diretório temporário e seus conteúdos após a instalação.
 
 echo "Bitcoin Core v${BITCOIN_VERSION} instalado com sucesso!"
 
@@ -63,24 +105,5 @@ User=root
 Type=forking
 PIDFile=/root/.bitcoin/bitcoind.pid
 Restart=always
-RestartSec=20
-
-[Install]
-WantedBy=multi-user.target
-EOF
-# Aqui, o script cria um arquivo de serviço do systemd para o Bitcoin.
-
-# Recarregue os serviços do systemd
-sudo systemctl daemon-reload
-# Esta linha recarrega os serviços do systemd para reconhecer o novo arquivo de serviço.
-
-# Ative o serviço do Bitcoin para iniciar na inicialização
-sudo systemctl enable bitcoind
-
-# Inicie o serviço do Bitcoin
-sudo systemctl start bitcoind
-# Estas linhas ativam e iniciam o serviço do Bitcoin usando o systemd.
-
-echo "Serviço do Bitcoin configurado e iniciado com sucesso!"
-# Esta linha exibe uma mensagem indicando que o serviço do Bitcoin foi configurado e iniciado com sucesso.
+RestartSec
 
