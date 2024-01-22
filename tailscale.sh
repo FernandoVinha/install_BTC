@@ -16,6 +16,9 @@ echo "Instalando o Tailscale..."
 sudo apt-get install tailscale
 # Estas linhas atualizam a lista de pacotes usando 'apt-get update' e instalam o pacote Tailscale usando 'apt-get install'.
 
+# Fazer login no Tailscale
+sudo tailscale up
+
 # Criar arquivo de serviço do systemd para o Tailscale
 echo "Criando arquivo de serviço do systemd para o Tailscale..."
 cat <<EOF | sudo tee /etc/systemd/system/tailscale.service
@@ -41,6 +44,7 @@ sudo systemctl daemon-reload
 # Ativar e iniciar o serviço do Tailscale
 sudo systemctl enable tailscale
 sudo systemctl start tailscale
+sudo tailscale up
 # Estas linhas ativam e iniciam o serviço do Tailscale usando 'systemctl'.
 
 # Caminho para o arquivo bitcoin.conf
@@ -54,4 +58,3 @@ echo "bind=0.0.0.0" | sudo tee -a $BITCOIN_CONF
 echo "externalip=$(sudo tailscale ip --4)" | sudo tee -a $BITCOIN_CONF
 
 echo "Configuração do Tailscale para o Bitcoin Core concluída com sucesso!"
-

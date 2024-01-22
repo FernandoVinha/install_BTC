@@ -1,63 +1,47 @@
 #!/bin/bash
-# Esta linha indica que o script será executado usando o interpretador bash.
+# Script para configurar o Lightning Network Daemon (LND)
 
-# Pedir ao usuário o nome do alias
+# Pedir ao usuário o nome do alias para o LND
 read -p "Digite o nome do alias para o Lightning Network Daemon (LND): " alias_name
 
-# Verificar se o arquivo lnd.conf existe
-LND_CONF="/root/.lnd/lnd.conf"
+# Diretórios para os arquivos de configuração
+LND_DIR="/root/.lnd"
+LND_CONF="$LND_DIR/lnd.conf"
+BITCOIN_CONF="/root/.bitcoin/bitcoin.conf"
+
+# Criar o diretório .lnd, se não existir
+if [ ! -d "$LND_DIR" ]; then
+    echo "Criando o diretório $LND_DIR..."
+    mkdir -p "$LND_DIR"
+fi
+
+# Criar o arquivo lnd.conf, se não existir
 if [ ! -f "$LND_CONF" ]; then
-    echo "Erro: O arquivo lnd.conf não encontrado em $LND_CONF."
-    exit 1
+    echo "Criando o arquivo lnd.conf em $LND_CONF..."
+    touch "$LND_CONF"
 fi
 
-# Verificar se as linhas já existem no lnd.conf
-if grep -Fxq "alias=$alias_name" "$LND_CONF" && grep -Fxq "color=#FF5733" "$LND_CONF"; then
-    echo "As linhas já existem no lnd.conf. Pulando a adição."
-else
-    # Adicionar as linhas ao lnd.conf
-    echo "Adicionando linhas ao lnd.conf..."
-    echo "alias=$alias_name" | sudo tee -a "$LND_CONF"
-    echo "color=#FF5733" | sudo tee -a "$LND_CONF"
-fi
+# Ler as configurações de rpcuser e rpcpassword de bitcoin.conf
+RPC_USER=$(grep '^rpcuser=' "$BITCOIN_CONF" | cut -d'=' -f2)
+RPC_PASSWORD=$(grep '^rpcpassword=' "$BITCOIN_CONF" | cut -d'=' -f2)
 
-# Atualiza os pacotes e instala o Go (Golang)
-echo "Atualizando pacotes e instalando Go..."
-sudo apt update
-sudo apt install -y golang-go
+# Adicionar configurações ao lnd.conf
+echo "alias=$alias_name" > "$LND_CONF"
+echo "color=#FF5733" >> "$LND_CONF"
+echo "[Bitcoin]" >> "$LND_CONF"
+echo "bitcoin.active=1" >> "$LND_CONF"
+echo "bitcoin.node=bitcoind" >> "$LND_CONF"
+echo "bitcoin.mainnet=1" >> "$LND_CONF"
+echo "[bitcoind]" >> "$LND_CONF"
+echo "bitcoind.rpcuser=$RPC_USER" >> "$LND_CONF"
+echo "bitcoind.rpcpass=$RPC_PASSWORD" >> "$LND_CONF"
+echo "bitcoind.zmqpubrawblock=tcp://127.0.0.1:28332" >> "$LND_CONF"
+echo "bitcoind.zmqpubrawtx=tcp://127.0.0.1:28333" >> "$LND_CONF"
 
-# Diretório temporário para baixar e extrair o LND (Lightning Network Daemon)
-TEMP_DIR="/tmp/lnd-install"
-LND_VERSION="v0.17.1-beta" # Substitua pela versão mais recente se necessário
-LND_TAR="lnd-linux-amd64-${LND_VERSION}.tar.gz"
-LND_URL="https://github.com/lightningnetwork/lnd/releases/download/${LND_VERSION}/${LND_TAR}"
-
-# Criar diretório temporário
-mkdir -p $TEMP_DIR
-cd $TEMP_DIR
-
-# Baixar o LND
-echo "Baixando LND ${LND_VERSION}..."
-curl -L -O $LND_URL
-
-# Extrair o arquivo baixado
-echo "Extraindo..."
-tar -xvzf $LND_TAR
-
-# Instalar o LND
-echo "Instalando..."
-sudo install -m 0755 -o root -g root -t /usr/local/bin "lnd-linux-amd64-${LND_VERSION}/lncli"
-sudo install -m 0755 -o root -g root -t /usr/local/bin "lnd-linux-amd64-${LND_VERSION}/lnd"
-
-# Limpar arquivos temporários
-echo "Limpando arquivos temporários..."
-rm -rf $TEMP_DIR
-
-echo "LND ${LND_VERSION} instalado com sucesso!"
-
-# Crie um arquivo de serviço do systemd para o LND
-echo "Criando arquivo de serviço do systemd para o LND..."
-cat <<EOF | sudo tee /etc/systemd/system/lnd.service
+# Criar um arquivo de serviço systemd para o LND
+LND_SERVICE_FILE="/etc/systemd/system/lnd.service"
+echo "Criando o serviço systemd para o LND em $LND_SERVICE_FILE..."
+sudo bash -c "cat > $LND_SERVICE_FILE" << EOF
 [Unit]
 Description=LND Lightning Network Daemon
 Wants=bitcoind.service
@@ -66,7 +50,6 @@ After=bitcoind.service
 [Service]
 ExecStart=/usr/local/bin/lnd
 User=root
-LimitNOFILE=128000
 Restart=on-failure
 TimeoutSec=60
 RestartSec=60
@@ -75,14 +58,13 @@ RestartSec=60
 WantedBy=multi-user.target
 EOF
 
-# Recarregue os serviços do systemd
-sudo systemctl daemon-reload
+# Habilitar e iniciar o serviço LND
+echo "Habilitando e iniciando o serviço LND..."
+sudo systemctl enable lnd.service
+sudo systemctl start lnd.service
 
-# Ative o serviço do LND para iniciar na inicialização
-sudo systemctl enable lnd
+# As próximas linhas para criar e desbloquear carteiras são indicativas
+# e precisariam de uma implementação específica para automatizar a interação com lncli.
 
-# Inicie o serviço do LND
-sudo systemctl start lnd
-
-echo "Serviço do LND configurado e iniciado com sucesso!"
+echo "LND configurado e serviço systemd criado."
 
